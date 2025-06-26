@@ -3,18 +3,24 @@ using Events.Models;
 using Events.Models.Entities;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.IdentityModel.Tokens;
 using System;
+using System.IdentityModel.Tokens.Jwt;
+using System.Security.Claims;
+using System.Text;
 
 namespace Events.Services
 {
     public interface IUserService
     {
         Task<List<User>> GetAllUsersAsync();
+
+        Task<IEnumerable<Event>> GetEventsByUser(int userId);
         Task<User> CreateUserAsync(UserDto dto);
         Task<User> UpdateUserAsync(UserDto dto);
         Task<User> GetUserByIdAsync(int eventId);
         Task<bool> DeleteUserAsync(int eventId);
-        Task<int> LoginAsync(string username, string password);
+        Task<dynamic> LoginAsync(string username, string password, JwtService jwt);
 
     }
     public class UserService : IUserService
@@ -29,6 +35,13 @@ namespace Events.Services
         public async Task<List<User>> GetAllUsersAsync()
         {
             return await _context.Users.ToListAsync();
+        }
+
+        public async Task<IEnumerable<Event>> GetEventsByUser(int userId)
+        {
+            return await _context.Set<Event>()
+                .FromSqlInterpolated($"EXEC GetUserEvents @UserId = {userId}")
+                .ToListAsync();
         }
 
         public async Task<User> GetUserByIdAsync(int userId)
@@ -78,12 +91,18 @@ namespace Events.Services
             await _context.SaveChangesAsync();
             return true;
         }
-        public async Task<int> LoginAsync(string username, string password)
+        public async Task<dynamic> LoginAsync(string username, string password, JwtService jwt)
         {
-            var user = await _context.Users
-                .FirstOrDefaultAsync(u => u.Username == username && u.Password == password);
+            
+                var user = await _context.Users
+                    .FirstOrDefaultAsync(u => u.Username == username && u.Password == password);
 
-            return user != null ? user.Id : -1;
+                if (user == null) return null;
+            var token = jwt.GenerateToken(user);
+
+                return new { token, username = user.Username, userid = user.Id };
+
+
         }
 
     }

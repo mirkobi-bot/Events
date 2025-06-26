@@ -1,9 +1,11 @@
 ﻿using Events.Data;
-using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Mvc;
 using Events.Models;
 using Events.Models.Entities;
 using Events.Services;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc;
+using System.Security.Claims;
 
 namespace Events.Controllers
 {
@@ -35,6 +37,17 @@ namespace Events.Controllers
 
             return Ok(u);
         }
+
+        [Authorize]
+
+        [HttpGet("user-events")]
+        public async Task<ActionResult<IEnumerable<Event>>> GetUserEvents()
+        {
+            var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
+            var events = await _userService.GetEventsByUser(userId);
+            return Ok(events);
+        }
+
         [HttpPost]
         public async Task<IActionResult> CreateUser(UserDto dto)
         {
@@ -67,10 +80,12 @@ namespace Events.Controllers
         }
 
         [HttpPost("login")]
-        public async Task<IActionResult> Login([FromBody] LoginDto dto)
+        public async Task<IActionResult> Login([FromBody] LoginDto dto, [FromServices] JwtService jwt)
         {
-            var userId = await _userService.LoginAsync(dto.Username, dto.Password);
-            return Ok(userId); // -1 se fallito, altrimenti l'ID
+            var result = await _userService.LoginAsync(dto.Username, dto.Password, jwt);
+            if (result is null)
+                return Unauthorized("Invalid username or password.");
+            return Ok(result);
         }
     }
     }

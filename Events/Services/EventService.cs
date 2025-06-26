@@ -2,14 +2,14 @@
 using Events.Models;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using System.Security.Claims;
 
 namespace Events.Services
 {
     public interface IEventService
     {
         Task<List<Event>> GetAllEventsAsync();
-        Task<Event> CreateEventAsync(CreateEventDto dto);
-        Task<Event> UpdateEventAsync(UpdateEventDto dto);
+        Task<Event> SaveEventAsync(EventDto e, ClaimsPrincipal u);
         Task<Event> GetEventByIdAsync(int eventId);
         Task<bool> DeleteEventAsync(int eventId);
 
@@ -34,38 +34,49 @@ namespace Events.Services
             return await _context.Events.FindAsync(eventId);
         }
 
-        public async Task<Event> CreateEventAsync(CreateEventDto dto)
+        public async Task<Event?> SaveEventAsync(EventDto e, ClaimsPrincipal u)
         {
-            var newEvent = new Event
+            //Recupera l'userId dal claim
+            var userIdClaim = u.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (userIdClaim == null)
+                return null;
+
+            var userId = int.Parse(userIdClaim);
+
+            if (e.Id == 0)
             {
-                Title = dto.Title,
-                Description = dto.Description,
-                StartDate = dto.StartDate,
-                EndDate = dto.EndDate,
-                CreatedByUserId = dto.CreatedByUserId
-            };
+                var newEvent = new Event
+                {
+                    Title = e.Title,
+                    Description = e.Description,
+                    StartDate = e.StartDate,
+                    EndDate = e.EndDate,
+                    CreatedByUserId = userId
+                };
 
-            _context.Events.Add(newEvent);
-            await _context.SaveChangesAsync();
-            return newEvent;
-        }
+                _context.Events.Add(newEvent);
+                await _context.SaveChangesAsync();
+                return newEvent;
+            }
 
-        public async Task<Event?> UpdateEventAsync(UpdateEventDto dto)
-        {
-            var existingEvent = await _context.Events.FindAsync(dto.Id);
+            var existingEvent = await _context.Events.FindAsync(e.Id);
             if (existingEvent == null)
                 return null;
 
-            existingEvent.Title = dto.Title;
-            existingEvent.Description = dto.Description;
-            existingEvent.StartDate = dto.StartDate;
-            existingEvent.EndDate = dto.EndDate;
-            existingEvent.CreatedByUserId = dto.CreatedByUserId;
+            // Optional: Verifica che l'utente possa modificare quell'evento
+            if (existingEvent.CreatedByUserId != userId)
+                return null; // oppure throw Unauthorized
+
+            existingEvent.Title = e.Title;
+            existingEvent.Description = e.Description;
+            existingEvent.StartDate = e.StartDate;
+            existingEvent.EndDate = e.EndDate;
 
             _context.Events.Update(existingEvent);
             await _context.SaveChangesAsync();
             return existingEvent;
         }
+
 
         public async Task<bool> DeleteEventAsync(int eventId)
         {

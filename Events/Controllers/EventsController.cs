@@ -36,26 +36,16 @@ namespace Events.Controllers
             return Ok(ev);
         }
 
-
         [HttpPost]
-        public async Task<IActionResult> CreateEvent(CreateEventDto dto)
+        public async Task<IActionResult> SaveEvent([FromBody] EventDto e)
         {
-            var created = await _eventService.CreateEventAsync(dto);
-            return CreatedAtAction(nameof(GetEventById), new { eventId = created.Id }, created);
+            var result = await _eventService.SaveEventAsync(e, User);
+            if (result == null)
+                return BadRequest("Errore nel salvataggio evento");
+
+            return Ok(result);
         }
 
-        [HttpPut("{id}")]
-        public async Task<IActionResult> UpdateEvent(int id, UpdateEventDto dto)
-        {
-            if (id != dto.Id)
-                return BadRequest("ID mismatch.");
-
-            var updated = await _eventService.UpdateEventAsync(dto);
-            if (updated == null)
-                return NotFound();
-
-            return Ok(updated);
-        }
 
         [HttpDelete("{eventId}")]
         public async Task<IActionResult> DeleteEvent(int eventId)
